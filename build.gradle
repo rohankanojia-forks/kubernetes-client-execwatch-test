@@ -1,0 +1,55 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.0'
+    id 'org.eclipse.jkube.openshift' version '1.5.1'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+assemble.dependsOn shadowJar
+
+jar {
+    manifest {
+        attributes(
+                "Main-Class": "io.fabric8.demo.ExecOnPodTest"
+        )
+    }
+}
+
+dependencies {
+    implementation 'io.fabric8:openshift-client:5.7.3'
+}
+
+openshift {
+    images {
+        image {
+            name = "simple-http-server:${project.version}"
+            build {
+                from = "quay.io/jkube/jkube-java-binary-s2i:0.0.10"
+                assembly {
+                    mode = "dir"
+                    targetDir = "/deployments"
+                    layers = [{
+                                  id = "copy-jar"
+                                  files = [{
+                                               source = file("build/libs/${project.name}-${project.version}-all.jar")
+                                               outputDirectory = "."
+                                           }]
+                              }]
+                }
+                cmd {
+                    exec = ["java", "-jar", "/deployments/${project.name}-${project.version}-all.jar"]
+                }
+                ports = ["8080"]
+            }
+        }
+    }
+    resources {
+        serviceAccount = 'kubernetes-client-execwatch-test'
+    }
+}
